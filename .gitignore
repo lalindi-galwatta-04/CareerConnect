@@ -1,0 +1,31 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local database credentials
+/config/database.php
+
+# Local database exports and backups
+*.sql
+*.sql.gz
+*.bak
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code workspace settings
+.vscode/
+
+# Dependencies, if installed through Composer
+/vendor/
+
+# Local development files
+.phpunit.cache/
