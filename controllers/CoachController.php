@@ -14,10 +14,10 @@ class CoachController {
         }
 
         // Authentication check
-if (!isset($_SESSION['user_id'])) {
-    header("Location: index.php?action=login");
-    exit;
-}
+        if (!isset($_SESSION['user_id'])) {
+            header("Location: index.php?action=login");
+            exit;
+        }
 
         $database = new Database();
         $this->db = $database->getConnection();
@@ -29,18 +29,21 @@ if (!isset($_SESSION['user_id'])) {
      * Helper to restrict coach-only dashboard actions
      */
     private function checkCoachAccess() {
-    if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'career_coach') {
-        header("Location: index.php?action=jobseeker_dashboard");
-        exit;
+        if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'career_coach') {
+            header("Location: index.php?action=jobseeker_dashboard");
+            exit;
+        }
     }
-}
 
     // Render Main Dashboard
     public function dashboard() {
+        $this->checkCoachAccess();
         $user_id = $_SESSION['user_id'];
         
         $coach = $this->coachModel->getProfile($user_id);
         $status_filter = $_GET['status'] ?? 'all';
+        
+        // Fetch sessions by coach and status filter
         $sessions = $this->bookingModel->getSessionsByCoach($user_id, $status_filter);
         $metrics = $this->bookingModel->getCoachMetrics($user_id);
         $feedback = $this->bookingModel->getFeedbackByCoach($user_id);
@@ -76,6 +79,7 @@ if (!isset($_SESSION['user_id'])) {
 
     // Manage Profile Details
     public function manageProfile() {
+        $this->checkCoachAccess();
         $user_id = $_SESSION['user_id'];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -281,33 +285,104 @@ if (!isset($_SESSION['user_id'])) {
         require __DIR__ . '/../views/coach/availability.php';
     }
 
+    // Render Analytics & Report Generation Page
+    public function reports() {
+        $this->checkCoachAccess();
+        $user_id = $_SESSION['user_id'];
+        $coach = $this->coachModel->getProfile($user_id);
+
+        // Retrieve filter parameters
+        $startDate = $_GET['start_date'] ?? date('Y-m-01'); // Default to start of current month
+        $endDate = $_GET['end_date'] ?? date('Y-m-t');     // Default to end of current month
+        $statusParam = $_GET['report_status'] ?? 'all';
+        $exportFormat = $_GET['export'] ?? '';
+
+        // Build status filter condition
+        $statusCondition = "";
+        $params = [$user_id, $startDate, $endDate];
+        if ($statusParam !== 'all') {
+            $statusCondition = "AND ci.status = ?";
+            $params[] = $statusParam;
+        }
+
+        // Fetch filtered sessions safely using coach_interaction and user tables
+        $query = "SELECT ci.*, u.email, 'Job Seeker' as full_name 
+                  FROM coach_interaction ci 
+                  LEFT JOIN user u ON ci.job_seeker_id = u.user_id 
+                  WHERE ci.coach_id = ? AND ci.session_date BETWEEN ? AND ? $statusCondition 
+                  ORDER BY ci.session_date DESC";
+        
+        $stmt = $this->db->prepare($query);
+        $stmt->execute($params);
+        $reportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calculate summary metrics for the selected period
+        $totalSessions = count($reportData);
+        $completedCount = 0;
+        $totalEarnings = 0;
+        $hourlyRate = floatval($coach['hourly_rate'] ?? 1000.00);
+
+        foreach ($reportData as $row) {
+            if (strtolower($row['status']) === 'completed') {
+                $completedCount++;
+                $durationHours = ($row['duration_minutes'] ?? 60) / 60;
+                $totalEarnings += ($durationHours * $hourlyRate);
+            }
+        }
+
+        // Handle CSV Export Download if requested
+        if ($exportFormat === 'csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename=Coach_Analytics_Report_' . date('Y-m-d') . '.csv');
+            $output = fopen('php://output', 'w');
+            
+            // CSV Headers
+            fputcsv($output, ['Interaction ID', 'Client Email', 'Date & Time', 'Duration (Mins)', 'Status', 'Notes']);
+            
+            foreach ($reportData as $row) {
+                fputcsv($output, [
+                    $row['interaction_id'] ?? '',
+                    $row['email'] ?? 'N/A',
+                    $row['session_date'],
+                    $row['duration_minutes'] ?? 60,
+                    ucfirst($row['status']),
+                    $row['notes'] ?? ''
+                ]);
+            }
+            fclose($output);
+            exit;
+        }
+
+        require __DIR__ . '/../views/coach/reports.php';
+    }
+
     // ==========================================
     // JOB SEEKER ACCESSIBLE METHODS
     // ==========================================
 
     // List all coaches for Job Seekers (index.php?action=browse_coaches)
     public function listCoachesForSeeker() {
-    $user_id = $_SESSION['user_id'];
+        $user_id = $_SESSION['user_id'];
 
-    $coaches = method_exists($this->coachModel, 'getAllCoaches')
-        ? $this->coachModel->getAllCoaches()
-        : array();
+        $coaches = method_exists($this->coachModel, 'getAllCoaches')
+            ? $this->coachModel->getAllCoaches()
+            : array();
 
-    $stmt = $this->db->prepare(
-        "SELECT js.*, u.email, u.phone_number
-         FROM Job_seeker js
-         JOIN User u ON js.user_id = u.user_id
-         WHERE js.user_id = :user_id"
-    );
+        $stmt = $this->db->prepare(
+            "SELECT js.*, u.email, u.phone_number
+             FROM Job_seeker js
+             JOIN User u ON js.user_id = u.user_id
+             WHERE js.user_id = :user_id"
+        );
 
-    $stmt->execute([
-        ':user_id' => $user_id
-    ]);
+        $stmt->execute([
+            ':user_id' => $user_id
+        ]);
 
-    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+        $profile = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    require __DIR__ . '/../views/jobseeker/browse_coaches.php';
-}
+        require __DIR__ . '/../views/jobseeker/browse_coaches.php';
+    }
 
     // Book session with a coach (index.php?action=book_session)
     public function bookSession() {

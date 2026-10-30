@@ -1,9 +1,10 @@
 <?php
 // Retrieve the current action to determine active page state
-$currentAction =$_GET['action'] ?? 'coach_dashboard';
+$currentAction = $_GET['action'] ?? 'coach_dashboard';
 
 // --- DUMMY DATA FALLBACKS ---
-if (empty($coach)) {$coach = [
+if (empty($coach)) {
+    $coach = [
         'coach_name' => 'Lalindi Mihirika',
         'specialization' => 'General Guidance & Career Strategy',
         'hourly_rate' => '1000.00',
@@ -12,7 +13,8 @@ if (empty($coach)) {$coach = [
 }
 
 // Fallback to dummy stats if metrics are uninitialized, empty, or all zeroes
-if (empty($metrics) || empty($metrics['total_sessions'])) {$metrics = [
+if (empty($metrics) || empty($metrics['total_sessions'])) {
+    $metrics = [
         'total_sessions' => 12,
         'pending_sessions' => 3,
         'completed_sessions' => 8,
@@ -21,7 +23,8 @@ if (empty($metrics) || empty($metrics['total_sessions'])) {$metrics = [
     ];
 }
 
-if (empty($sessions)) {$sessions = [
+if (empty($sessions)) {
+    $sessions = [
         [
             'interaction_id' => 101,
             'first_name' => 'Kavindu',
@@ -61,7 +64,17 @@ if (empty($sessions)) {$sessions = [
     ];
 }
 
-if (empty($feedbacks)) {$feedbacks = [
+// Pagination setup view-side if controller passes full list
+$limit = 3; // Sessions per page
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$totalSessionsCount = count($sessions);
+$totalPages = max(1, ceil($totalSessionsCount / $limit));
+$offset = ($page - 1) * $limit;
+$paginatedSessions = array_slice($sessions, $offset, $limit);
+
+if (empty($feedbacks)) {
+    $feedbacks = [
         [
             'first_name' => 'Nipuna',
             'last_name' => 'Silva',
@@ -94,173 +107,211 @@ if (empty($feedbacks)) {$feedbacks = [
     <title>Coach Dashboard - CareerConnect</title>
     <link rel="stylesheet" href="public/css/style.css?v=5.0">
     <style>
-
         /* Navbar Links Styling */
-.nav-links a {
-    display: inline-block;
-    padding: 0.6rem 1.2rem;
-    color: #475569;
-    text-decoration: none;
-    font-weight: 500;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
+        .nav-links a {
+            display: inline-block;
+            padding: 0.6rem 1.2rem;
+            color: #475569;
+            text-decoration: none;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
 
-.nav-links a:hover {
-    background-color: #f1f5f9;
-    color: #1e40af;
-}
+        .nav-links a:hover {
+            background-color: #f1f5f9;
+            color: #1e40af;
+        }
 
-/* Active Navigation Link (Highlighted State) */
-.nav-links a.active {
-    background-color: #eff6ff !important;
-    color: #2563eb !important;
-    font-weight: 700 !important;
-}
-    /* Dynamic item container styled for light theme background */
-    .dynamic-item {
-        display: grid;
-        grid-template-columns: 2fr 1.5fr auto auto;
-        gap: 0.75rem;
-        align-items: center;
-        margin-bottom: 0.75rem;
-        background: #ffffff;
-        padding: 0.625rem 0.75rem;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-    }
+        /* Active Navigation Link (Highlighted State) */
+        .nav-links a.active {
+            background-color: #eff6ff !important;
+            color: #2563eb !important;
+            font-weight: 700 !important;
+        }
 
-    /* Fixed "+ Add..." action buttons matching primary dark navy theme */
-    .btn-add-item {
-        background: #0f172a;
-        color: #ffffff;
-        border: 1px dashed #334155;
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        cursor: pointer;
-        width: 100%;
-        margin-top: 0.5rem;
-        font-weight: 600;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-    }
-    .btn-add-item:hover {
-        background: #1e293b;
-        color: #ffffff;
-        border-color: #0f172a;
-    }
+        /* Pagination Styling */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        .pagination-buttons {
+            display: flex;
+            gap: 0.4rem;
+        }
+        .pagination-btn {
+            padding: 0.35rem 0.75rem;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .pagination-btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .pagination-btn.active {
+            background: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
+        }
+        .pagination-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
 
-    /* Soft Indigo/Purple Edit Button */
-    .btn-edit-item {
-        background: #eef2ff;
-        color: #4f46e5;
-        border: 1px solid #c7d2fe;
-        border-radius: 6px;
-        padding: 0.45rem 0.85rem;
-        cursor: pointer;
-        font-size: 0.85rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-    .btn-edit-item:hover {
-        background: #4f46e5;
-        color: #ffffff;
-        border-color: #4f46e5;
-    }
+        /* Dynamic item container styled for light theme background */
+        .dynamic-item {
+            display: grid;
+            grid-template-columns: 2fr 1.5fr auto auto;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            background: #ffffff;
+            padding: 0.625rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
 
-    /* Soft Red Delete/Remove Button */
-    .btn-remove-item {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fecaca;
-        border-radius: 6px;
-        padding: 0.45rem 0.85rem;
-        cursor: pointer;
-        font-size: 0.85rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-    .btn-remove-item:hover {
-        background: #dc2626;
-        color: #ffffff;
-        border-color: #dc2626;
-    }
+        /* Fixed "+ Add..." action buttons matching primary dark navy theme */
+        .btn-add-item {
+            background: #0f172a;
+            color: #ffffff;
+            border: 1px dashed #334155;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .btn-add-item:hover {
+            background: #1e293b;
+            color: #ffffff;
+            border-color: #0f172a;
+        }
 
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-    }
+        /* Soft Indigo/Purple Edit Button */
+        .btn-edit-item {
+            background: #eef2ff;
+            color: #4f46e5;
+            border: 1px solid #c7d2fe;
+            border-radius: 6px;
+            padding: 0.45rem 0.85rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .btn-edit-item:hover {
+            background: #4f46e5;
+            color: #ffffff;
+            border-color: #4f46e5;
+        }
 
-    /* Readonly inputs styled for clean dark text readability */
-    .input-readonly {
-        background: transparent !important;
-        border-color: transparent !important;
-        color: #0f172a !important;
-        font-weight: 500;
-        pointer-events: none;
-    }
+        /* Soft Red Delete/Remove Button */
+        .btn-remove-item {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            padding: 0.45rem 0.85rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .btn-remove-item:hover {
+            background: #dc2626;
+            color: #ffffff;
+            border-color: #dc2626;
+        }
 
-    /* Input text color for light theme */
-    .dynamic-item .input-field {
-        color: #0f172a;
-    }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
 
-    /* Custom styling for Coaching Mode dropdown select */
-    .select-field {
-        width: 100%;
-        padding: 0.75rem;
-        background-color: #ffffff;
-        color: #0f172a;
-        border: 1px solid #cbd5e1;
-        border-radius: 6px;
-        font-size: 0.95rem;
-        outline: none;
-    }
+        /* Readonly inputs styled for clean dark text readability */
+        .input-readonly {
+            background: transparent !important;
+            border-color: transparent !important;
+            color: #0f172a !important;
+            font-weight: 500;
+            pointer-events: none;
+        }
 
-    .select-field option {
-        background-color: #ffffff;
-        color: #0f172a;
-    }
+        /* Input text color for light theme */
+        .dynamic-item .input-field {
+            color: #0f172a;
+        }
 
-</style>
+        /* Custom styling for Coaching Mode dropdown select */
+        .select-field {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #ffffff;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .select-field option {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+    </style>
 </head>
 <body>
 <header class="top-header">
-        <div class="user-profile" id="userProfile">
-            <button type="button" class="user-profile-button" onclick="toggleProfileDropdown()">
-                <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;">
-                    <?php 
-                        $displayName =$coachName ?? $coach['full_name'] ?? $coach['coach_name'] ?? 'Coach';
-                        echo htmlspecialchars(strtoupper(substr($displayName, 0, 1))); 
-                    ?>
-                </div>
-
-                <span class="user-name">
-                    <?php echo htmlspecialchars($displayName); ?>
-                </span>
-
-                <span class="user-arrow">▼</span>
-            </button>
-
-            <div class="profile-dropdown" id="profileDropdown">
-                <div class="dropdown-user">
-                    <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;">
-                        <?php echo htmlspecialchars(strtoupper(substr($displayName, 0, 1))); ?>
-                    </div>
-
-                    <div class="dropdown-user-info">
-                        <strong><?php echo htmlspecialchars($displayName); ?></strong>
-                        <span><?php echo htmlspecialchars($coach['email'] ?? $_SESSION['user']['email'] ?? ''); ?></span>
-                    </div>
-                </div>
-
-                <a href="index.php?action=coach_profile">Profile</a>
-                <a href="index.php?action=logout" class="dropdown-logout">Logout</a>
+    <div class="user-profile" id="userProfile">
+        <button type="button" class="user-profile-button" onclick="toggleProfileDropdown()">
+            <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;">
+                <?php 
+                    $displayName = $coachName ?? $coach['full_name'] ?? $coach['coach_name'] ?? 'Coach';
+                    echo htmlspecialchars(strtoupper(substr($displayName, 0, 1))); 
+                ?>
             </div>
+
+            <span class="user-name">
+                <?php echo htmlspecialchars($displayName); ?>
+            </span>
+
+            <span class="user-arrow">▼</span>
+        </button>
+
+        <div class="profile-dropdown" id="profileDropdown">
+            <div class="dropdown-user">
+                <div class="user-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:700;">
+                    <?php echo htmlspecialchars(strtoupper(substr($displayName, 0, 1))); ?>
+                </div>
+
+                <div class="dropdown-user-info">
+                    <strong><?php echo htmlspecialchars($displayName); ?></strong>
+                    <span><?php echo htmlspecialchars($coach['email'] ?? $_SESSION['user']['email'] ?? ''); ?></span>
+                </div>
+            </div>
+
+            <a href="index.php?action=coach_profile">Profile</a>
+            <a href="index.php?action=logout" class="dropdown-logout">Logout</a>
         </div>
-    </header>
+    </div>
+</header>
 
     <?php
         $activePage = 'dashboard';
@@ -305,7 +356,7 @@ if (empty($feedbacks)) {$feedbacks = [
             </div>
         </div>
 
-        <!-- Session List with Filters -->
+        <!-- Session List with Filters & Paging -->
         <div class="card" id="coaching-sessions">
             <div class="section-card" style="padding:0; border:none; margin-bottom: 1.5rem; background:transparent;">
                 <h2>Coaching Sessions</h2>
@@ -313,16 +364,16 @@ if (empty($feedbacks)) {$feedbacks = [
             
             <!-- Filter Pills Navigation -->
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-                <a href="index.php?action=coach_dashboard&status=all#coaching-sessions" 
+                <a href="index.php?action=coach_dashboard&status=all&page=1#coaching-sessions" 
                    class="btn <?php echo ($statusFilter ?? 'all') === 'all' ? '' : 'btn-outline'; ?>" 
                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 20px;">All</a>
-                <a href="index.php?action=coach_dashboard&status=scheduled#coaching-sessions" 
+                <a href="index.php?action=coach_dashboard&status=scheduled&page=1#coaching-sessions" 
                    class="btn <?php echo ($statusFilter ?? '') === 'scheduled' ? '' : 'btn-outline'; ?>" 
                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 20px;">Scheduled</a>
-                <a href="index.php?action=coach_dashboard&status=completed#coaching-sessions" 
+                <a href="index.php?action=coach_dashboard&status=completed&page=1#coaching-sessions" 
                    class="btn <?php echo ($statusFilter ?? '') === 'completed' ? '' : 'btn-outline'; ?>" 
                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 20px;">Completed</a>
-                <a href="index.php?action=coach_dashboard&status=cancelled#coaching-sessions" 
+                <a href="index.php?action=coach_dashboard&status=cancelled&page=1#coaching-sessions" 
                    class="btn <?php echo ($statusFilter ?? '') === 'cancelled' ? '' : 'btn-outline'; ?>" 
                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 20px;">Cancelled</a>
             </div>
@@ -334,58 +385,100 @@ if (empty($feedbacks)) {$feedbacks = [
                             <th>Client Name</th>
                             <th>Date & Time</th>
                             <th>Duration</th>
-                            <th>Status</th>
-                            <th>Session Notes</th>
-                            <th style="min-width: 220px;">Manage Session</th>
+                            <th style="text-align: right;">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (!empty($sessions)): ?>
-                            <?php foreach ($sessions as$session): ?>
+                        <?php if (!empty($paginatedSessions)): ?>
+                            <?php foreach ($paginatedSessions as $index => $session): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($session['first_name'] . ' ' .$session['last_name']); ?></strong></td>
+                                    <td><strong><?php echo htmlspecialchars($session['first_name'] . ' ' . $session['last_name']); ?></strong></td>
                                     <td style="color: var(--text-muted);"><?php echo htmlspecialchars($session['session_date']); ?></td>
                                     <td><?php echo htmlspecialchars($session['duration_minutes']); ?> mins</td>
-                                    <td>
-                                        <?php 
-                                            $st = strtolower($session['status']);$badgeClass = 'status-pending';
-                                            if ($st === 'completed')$badgeClass = 'status-approved';
-                                            if ($st === 'cancelled')$badgeClass = 'status-rejected';
-                                        ?>
-                                        <span class="status <?php echo $badgeClass; ?>">
-                                            <?php echo ucfirst($session['status']); ?>
-                                        </span>
+                                    <td style="text-align: right;">
+                                        <button type="button" class="btn btn-outline" onclick="toggleSessionDetails(<?php echo $index; ?>)" style="padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600;">
+                                            Manage ▼
+                                        </button>
                                     </td>
-                                    <td style="color: var(--text-muted); max-width: 200px;">
-                                        <?php echo htmlspecialchars($session['notes'] ?? 'None'); ?>
-                                    </td>
-                                    <td>
-                                        <form action="index.php?action=conduct_session" method="POST" style="display: flex; flex-direction: column; gap: 0.4rem;">
-                                            <input type="hidden" name="interaction_id" value="<?php echo $session['interaction_id']; ?>">
-                                            <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($statusFilter ?? 'all'); ?>">
+                                </tr>
+                                
+                                <!-- Collapsible Detail Row for Status & Management -->
+                                <tr id="session-details-<?php echo $index; ?>" style="display: none; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                    <td colspan="4" style="padding: 1.2rem;">
+                                        <div style="display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap;">
                                             
-                                            <textarea name="notes" placeholder="Add session notes..." style="width: 100%; min-height: 45px; padding: 0.4rem; font-size: 0.85rem; resize: vertical;"><?php echo htmlspecialchars($session['notes'] ?? ''); ?></textarea>
-                                            
-                                            <div style="display: flex; gap: 0.4rem;">
-                                                <select name="status" style="padding: 0.3rem 0.5rem; font-size: 0.82rem; flex: 1;">
-                                                    <option value="scheduled" <?php if($session['status']=='scheduled') echo 'selected'; ?>>Scheduled</option>
-                                                    <option value="completed" <?php if($session['status']=='completed') echo 'selected'; ?>>Completed</option>
-                                                    <option value="cancelled" <?php if($session['status']=='cancelled') echo 'selected'; ?>>Cancelled</option>
-                                                </select>
-                                                <button type="submit" class="btn" style="padding: 0.3rem 0.75rem; font-size: 0.82rem;">Save</button>
+                                            <!-- Current Status Badge Display -->
+                                            <div>
+                                                <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 0.3rem;">Current Status</span>
+                                                <?php 
+                                                    $st = strtolower($session['status']);
+                                                    $badgeClass = 'status-pending';
+                                                    if ($st === 'completed') $badgeClass = 'status-approved';
+                                                    if ($st === 'cancelled') $badgeClass = 'status-rejected';
+                                                ?>
+                                                <span class="status <?php echo $badgeClass; ?>" style="padding: 0.3rem 0.8rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                                    <?php echo strtoupper($session['status']); ?>
+                                                </span>
                                             </div>
-                                        </form>
+
+                                            <!-- Management Form -->
+                                            <form action="index.php?action=conduct_session" method="POST" style="flex-grow: 1; display: flex; flex-direction: column; gap: 0.75rem;">
+                                                <input type="hidden" name="interaction_id" value="<?php echo $session['interaction_id']; ?>">
+                                                <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($statusFilter ?? 'all'); ?>">
+
+                                                <div style="display: grid; grid-template-columns: 1fr 200px; gap: 1rem;">
+                                                    <div>
+                                                        <label style="font-size: 0.75rem; font-weight: 700; color: #64748b; display: block; margin-bottom: 0.2rem;">Session Notes</label>
+                                                        <textarea name="notes" rows="2" placeholder="Add session notes..." style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; box-sizing: border-box; resize: vertical;"><?php echo htmlspecialchars($session['notes'] ?? ''); ?></textarea>
+                                                    </div>
+                                                    <div>
+                                                        <label style="font-size: 0.75rem; font-weight: 700; color: #64748b; display: block; margin-bottom: 0.2rem;">Change Status</label>
+                                                        <select name="status" style="width: 100%; padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                                            <option value="scheduled" <?php if($session['status']=='scheduled') echo 'selected'; ?>>Scheduled</option>
+                                                            <option value="completed" <?php if($session['status']=='completed') echo 'selected'; ?>>Completed</option>
+                                                            <option value="cancelled" <?php if($session['status']=='cancelled') echo 'selected'; ?>>Cancelled</option>
+                                                        </select>
+                                                        <button type="submit" class="btn" style="width: 100%; padding: 0.45rem; font-size: 0.85rem; font-weight: 600;">Save Changes</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No sessions found for this status.</td>
+                                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No sessions found for this status.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Control Bar -->
+            <?php if ($totalSessionsCount > 0): ?>
+                <div class="pagination-container">
+                    <div>
+                        Showing <strong><?php echo min($totalSessionsCount, $offset + 1); ?></strong> to <strong><?php echo min($totalSessionsCount, $offset + count($paginatedSessions)); ?></strong> of <strong><?php echo $totalSessionsCount; ?></strong> sessions
+                    </div>
+                    <div class="pagination-buttons">
+                        <!-- Previous Page -->
+                        <a href="index.php?action=coach_dashboard&status=<?php echo htmlspecialchars($statusFilter ?? 'all'); ?>&page=<?php echo max(1, $page - 1); ?>#coaching-sessions" 
+                           class="pagination-btn <?php echo ($page <= 1) ? 'disabled' : ''; ?>">&laquo; Prev</a>
+
+                        <!-- Page Number Links -->
+                        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                            <a href="index.php?action=coach_dashboard&status=<?php echo htmlspecialchars($statusFilter ?? 'all'); ?>&page=<?php echo $i; ?>#coaching-sessions" 
+                               class="pagination-btn <?php echo ($i === $page) ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                        <?php endfor; ?>
+
+                        <!-- Next Page -->
+                        <a href="index.php?action=coach_dashboard&status=<?php echo htmlspecialchars($statusFilter ?? 'all'); ?>&page=<?php echo min($totalPages, $page + 1); ?>#coaching-sessions" 
+                           class="pagination-btn <?php echo ($page >= $totalPages) ? 'disabled' : ''; ?>">Next &raquo;</a>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- Feedback & Ratings Display -->
@@ -396,10 +489,10 @@ if (empty($feedbacks)) {$feedbacks = [
             
             <?php if (!empty($feedbacks)): ?>
                 <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <?php foreach ($feedbacks as$review): ?>
+                    <?php foreach ($feedbacks as $review): ?>
                         <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 10px; padding: 1.2rem;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
-                                <strong><?php echo htmlspecialchars($review['first_name'] . ' ' .$review['last_name']); ?></strong>
+                                <strong><?php echo htmlspecialchars($review['first_name'] . ' ' . $review['last_name']); ?></strong>
                                 <span style="color: #fbbf24; font-size: 1.1rem; letter-spacing: 2px;">
                                     <?php 
                                         $rating = (int)$review['rating'];
@@ -437,6 +530,18 @@ if (empty($feedbacks)) {$feedbacks = [
                 dropdown.classList.remove('show');
             }
         });
+
+        // Toggle Expand/Collapse for Session Management Row
+        function toggleSessionDetails(index) {
+            const detailRow = document.getElementById('session-details-' + index);
+            if (detailRow) {
+                if (detailRow.style.display === 'none' || detailRow.style.display === '') {
+                    detailRow.style.display = 'table-row';
+                } else {
+                    detailRow.style.display = 'none';
+                }
+            }
+        }
 
         // Toggle Edit/Save Mode per Row
         function toggleEditRow(button) {
