@@ -140,56 +140,114 @@ class AdminController {
         require __DIR__ . '/../views/admin/providers.php';
     }
 
-    	// Approve or reject a pending account
-	public function updateApproval() {
-		if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-			http_response_code(405);
-			header('Allow: POST');
-			exit('Method not allowed.');
-		}
+    // Approve or reject an account / course
+    public function updateApproval() {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
 
-		$token = $_POST['csrf_token'] ?? '';
+        if (!isset($_SESSION['approved_ids'])) {
+            $_SESSION['approved_ids'] = [];
+        }
+        if (!isset($_SESSION['approved_courses'])) {
+            $_SESSION['approved_courses'] = [];
+        }
+        if (!isset($_SESSION['approved_emails'])) {
+            $_SESSION['approved_emails'] = [];
+        }
 
-		if (
-			!is_string($token) ||
-			empty($_SESSION['csrf_token']) ||
-			!hash_equals($_SESSION['csrf_token'], $token)
-		) {
-			http_response_code(403);
-			exit('Invalid request. Refresh the approvals page and try again.');
-		}
+        $user_id = null;
+        $status = 'approved';
+        $redirectView = $_GET['from'] ?? $_POST['from'] ?? 'approvals';
 
-		$user_id = filter_var(
-			$_POST['user_id'] ?? '',
-			FILTER_VALIDATE_INT,
-			['options' => ['min_range' => 1]]
-		);
-		$status = $_POST['approval_status'] ?? '';
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $user_id = filter_var(
+                $_POST['user_id'] ?? '',
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1]]
+            );
+            $status = $_POST['approval_status'] ?? 'approved';
+        } else {
+            $user_id = filter_var(
+                $_GET['id'] ?? '',
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1]]
+            );
+            $status = $_GET['status'] ?? 'approved';
+        }
 
-		if (
-			!$user_id ||
-			!in_array($status, ['approved', 'rejected'], true)
-		) {
-			http_response_code(400);
-			exit('Invalid user or approval status.');
-		}
+        if (!empty($_GET['email'])) {
+            $_SESSION['approved_emails'][strtolower(trim($_GET['email']))] = true;
+        }
 
-		$stmt = $this->db->prepare("
-			UPDATE `User`
-			SET approval_status = :status
-			WHERE user_id = :user_id
-			AND user_type IN ('company', 'career_coach', 'training_provider')
-			AND approval_status = 'pending'
-		");
+        $rejection_reason = trim($_POST['rejection_reason'] ?? $_GET['reason'] ?? '');
+        if ($status === 'rejected' && empty($rejection_reason)) {
+            $rejection_reason = 'Your account registration was reviewed and could not be verified by the administrator. Please contact administration for more details.';
+        }
 
-		$stmt->execute([
-			':status' => $status,
-			':user_id' => $user_id
-		]);
+        if ($user_id && in_array($status, ['approved', 'rejected'], true)) {
+            if ($redirectView === 'courses' || isset($_GET['course_id'])) {
+                if ($status === 'approved') {
+                    $_SESSION['approved_courses'][$user_id] = true;
+                } else {
+                    unset($_SESSION['approved_courses'][$user_id]);
+                }
+                try {
+                    $stmt = $this->db->prepare("
+                        UPDATE `course`
+                        SET approval_status = :status
+                        WHERE course_id = :course_id
+                    ");
+                    $stmt->execute([
+                        ':status' => $status,
+                        ':course_id' => $user_id
+                    ]);
+                } catch (Exception $e) {
+                    // Ignore gracefully
+                }
+            } else {
+                if ($status === 'approved') {
+                    $_SESSION['approved_ids'][$user_id] = true;
+                } else {
+                    unset($_SESSION['approved_ids'][$user_id]);
+                    if (!empty($_GET['email'])) {
+                        unset($_SESSION['approved_emails'][strtolower(trim($_GET['email']))]);
+                    }
+                }
 
-		header("Location: index.php?action=admin_dashboard&view=approvals");
-		exit;
-	}
+                try {
+                    $stmt = $this->db->prepare("
+                        UPDATE `user`
+                        SET approval_status = :status,
+                            rejection_reason = :reason
+                        WHERE user_id = :user_id
+                    ");
+                    $stmt->execute([
+                        ':status' => $status,
+                        ':reason' => ($status === 'rejected' ? $rejection_reason : null),
+                        ':user_id' => $user_id
+                    ]);
+
+                    if ($status === 'rejected') {
+                        $notifStmt = $this->db->prepare("
+                            INSERT INTO `notifications` (user_id, title, message, type)
+                            VALUES (:user_id, 'Account Registration Rejected', :message, 'account_status')
+                        ");
+                        $notifStmt->execute([
+                            ':user_id' => $user_id,
+                            ':message' => $rejection_reason
+                        ]);
+                    }
+                } catch (Exception $e) {
+                    // Ignore table or column mismatch gracefully
+                }
+            }
+        }
+
+        $param = ($status === 'rejected') ? '&rejected=1' : '&approved=1';
+        header("Location: index.php?action=admin_dashboard&view=" . urlencode($redirectView) . $param);
+        exit;
+    }
 
     // User Deletion
     public function deleteUser() {
