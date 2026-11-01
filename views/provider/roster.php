@@ -35,7 +35,7 @@
                 </span>
                 <span>My Courses</span>
             </a>
-            <a href="index.php?action=manage_course" class="sidebar-sub-btn">Add New Course</a>
+            <a href="index.php?action=manage_course&mode=new" class="sidebar-sub-btn">Add New Course</a>
 
             <a href="index.php?action=provider_dashboard&view=roster" class="sidebar-nav-item active">
                 <span class="sidebar-icon">
