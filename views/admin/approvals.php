@@ -155,6 +155,16 @@
             <h1 class="admin-page-title">Entity Approvals & Verification</h1>
         </div>
 
+        <?php if (isset($_GET['approved'])): ?>
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #07a489;">&#10003;</span> Entity account approved successfully! Status marked as Completed.
+            </div>
+        <?php elseif (isset($_GET['rejected'])): ?>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #dc2626;">&#10007;</span> Entity account registration has been rejected. Notification recorded.
+            </div>
+        <?php endif; ?>
+
         <!-- Entity Approvals Card -->
         <div class="card admin-card">
             
@@ -186,6 +196,7 @@
                             <th>ENTITY NAME</th>
                             <th>CONTACT EMAIL</th>
                             <th>DETAILS / FIELD</th>
+                            <th class="text-center">DOCUMENT</th>
                             <th>REGISTERED DATE</th>
                             <th class="text-center">STATUS</th>
                             <th class="text-right">ACTIONS</th>
@@ -193,7 +204,19 @@
                     </thead>
                     <tbody id="entitiesTableBody">
                         <?php if (!empty($entities)): ?>
-                            <?php foreach ($entities as $ent): ?>
+                            <?php foreach ($entities as $ent): 
+                                $rawStatus = strtolower($ent['approval_status'] ?? $ent['status'] ?? 'pending');
+                                $isExplicitlyApproved = !empty($_SESSION['approved_ids'][$ent['user_id']]) || (!empty($ent['email']) && !empty($_SESSION['approved_emails'][strtolower($ent['email'])]));
+
+                                $isEntApproved = false;
+                                $isEntRejected = false;
+
+                                if ($isExplicitlyApproved || $rawStatus === 'approved' || $rawStatus === 'verified') {
+                                    $isEntApproved = true;
+                                } elseif ($rawStatus === 'rejected') {
+                                    $isEntRejected = true;
+                                }
+                            ?>
                                 <tr class="entity-record-row" data-type="<?php echo htmlspecialchars($ent['entity_type']); ?>">
                                     <td>
     <span style="font-weight:700;color:#000;text-transform:uppercase;font-size:12px;">
@@ -209,16 +232,58 @@
                                     <td class="admin-td-date">
                                         <?php echo htmlspecialchars($ent['detail'] ?? 'N/A'); ?>
                                     </td>
+                                    <td class="text-center">
+                                        <?php if (!empty($ent['document'])): 
+                                            $docHref = (strpos($ent['document'], 'public/') === 0 || strpos($ent['document'], '/') === 0) 
+                                                ? htmlspecialchars($ent['document']) 
+                                                : 'public/uploads/verification/' . htmlspecialchars($ent['document']);
+                                        ?>
+                                            <a href="<?php echo $docHref; ?>" target="_blank" style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.78rem; font-weight: 700; text-decoration: none;" title="Open Verification Document in new tab">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                                </svg>
+                                                View Doc
+                                            </a>
+                                        <?php else: ?>
+                                            <span style="color: #94a3b8; font-size: 0.78rem; font-style: italic;">No Doc</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="admin-td-date">
                                         <?php echo htmlspecialchars(date('M d, Y', strtotime($ent['created_at']))); ?>
                                     </td>
                                     <td class="text-center">
-                                        <span class="status status-approved">
-                                            &#10003; <?php echo htmlspecialchars($ent['status']); ?>
-                                        </span>
+                                        <?php if ($isEntApproved): ?>
+                                            <span class="status status-approved">
+                                                &#10003; Approved
+                                            </span>
+                                        <?php elseif ($isEntRejected): ?>
+                                            <span class="status status-rejected" style="background:#fef2f2; color:#991b1b; border:1px solid #fecaca; font-weight:700; border-radius:9999px; padding:4px 10px; font-size:12px;">
+                                                &#10007; Rejected
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="status status-pending" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-weight:700; border-radius:9999px; padding:4px 10px; font-size:12px;">
+                                                Pending
+                                            </span>
+                                        <?php endif; ?>
                                     </td>
-                                    <td class="admin-td-actions">
-                                        <a href="index.php?action=admin_delete_user&id=<?php echo $ent['user_id']; ?>&from=approvals" class="btn btn-danger admin-btn-action" onclick="return confirm('Revoke verification and remove this entity user account?')">Revoke</a>
+                                    <td class="admin-td-actions" style="white-space: nowrap;">
+                                        <?php if ($isEntApproved): ?>
+                                            <span class="status-badge-completed" style="font-weight: 700; color: #07a489; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem;">&#10003; Approved</span>
+                                        <?php elseif ($isEntRejected): ?>
+                                            <div style="display:inline-flex; align-items:center; gap:6px;">
+                                                <span style="font-weight: 700; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 6px 10px; border-radius: 6px; font-size: 0.82rem;" title="<?php echo htmlspecialchars($ent['rejection_reason'] ?? 'No reason provided'); ?>">&#10007; Rejected</span>
+                                                <a href="index.php?action=admin_update_approval&id=<?php echo $ent['user_id']; ?>&status=approved&from=approvals<?php echo !empty($ent['email']) ? '&email=' . urlencode($ent['email']) : ''; ?>" class="btn admin-btn-action" style="background: #0ea5e9; border-color: #0ea5e9; color: #ffffff; font-weight: 600; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; text-decoration: none;" title="Re-approve this account">Re-Approve</a>
+                                            </div>
+                                        <?php else: ?>
+                                            <div style="display:inline-flex; align-items:center; gap:6px;">
+                                                <a href="index.php?action=admin_update_approval&id=<?php echo $ent['user_id']; ?>&status=approved&from=approvals<?php echo !empty($ent['email']) ? '&email=' . urlencode($ent['email']) : ''; ?>" class="btn admin-btn-action" style="background: #07a489; border-color: #07a489; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 12px; text-decoration: none; font-size: 0.82rem;">Approve</a>
+                                                <button type="button" onclick="openRejectModal(<?php echo $ent['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($ent['name'] ?? 'Entity'), ENT_QUOTES); ?>', '<?php echo htmlspecialchars(addslashes($ent['email'] ?? ''), ENT_QUOTES); ?>')" class="btn" style="background: #ef4444; border-color: #ef4444; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer; border: none;">Reject</button>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -226,7 +291,7 @@
 
                         <!-- Empty State Row -->
                         <tr id="entitiesEmptyState" style="<?php echo empty($entities) ? '' : 'display: none;'; ?>">
-                            <td colspan="7" class="admin-empty-state-td">
+                            <td colspan="8" class="admin-empty-state-td">
                                 <div class="admin-empty-state-wrapper">
                                     <div class="admin-empty-icon-circle">
                                         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -390,6 +455,60 @@
         document.addEventListener('DOMContentLoaded', function() {
             renderPagination();
         });
+    </script>
+    <!-- Rejection Reason Modal -->
+    <div id="rejectModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+        <div style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 480px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; margin: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #ef4444;">&#9888;</span> Reject Registration
+                </h3>
+                <button type="button" onclick="closeRejectModal()" style="background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            <form action="index.php?action=admin_update_approval" method="POST">
+                <input type="hidden" name="user_id" id="rejectUserId" value="">
+                <input type="hidden" name="approval_status" value="rejected">
+                <input type="hidden" name="from" value="approvals">
+                
+                <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #475569;">
+                    Are you sure you want to reject <strong id="rejectEntityName">this entity</strong>? An in-app notification with your reason will be delivered when this user signs in.
+                </p>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 6px;">
+                        Reason for Rejection <span style="color: #ef4444;">*</span>
+                    </label>
+                    <textarea name="rejection_reason" id="rejectReasonInput" required rows="4" placeholder="Explain why the registration was rejected (e.g., Unverifiable credentials, incomplete business information, invalid certificate)..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-family: inherit; box-sizing: border-box; resize: vertical;"></textarea>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" onclick="closeRejectModal()" style="padding: 9px 16px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; border-radius: 6px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    <button type="submit" style="padding: 9px 18px; border: none; background: #ef4444; color: #ffffff; border-radius: 6px; font-weight: 700; cursor: pointer;">Confirm Rejection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openRejectModal(userId, entityName, email) {
+        document.getElementById('rejectUserId').value = userId;
+        document.getElementById('rejectEntityName').innerText = entityName + (email ? ' (' + email + ')' : '');
+        document.getElementById('rejectReasonInput').value = '';
+        var modal = document.getElementById('rejectModal');
+        modal.style.display = 'flex';
+    }
+
+    function closeRejectModal() {
+        var modal = document.getElementById('rejectModal');
+        modal.style.display = 'none';
+    }
+
+    window.addEventListener('click', function(e) {
+        var modal = document.getElementById('rejectModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
     </script>
 </body>
 </html>

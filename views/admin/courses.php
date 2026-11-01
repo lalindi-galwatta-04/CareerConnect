@@ -155,6 +155,12 @@
             <h1 class="admin-page-title">Training Courses Oversight</h1>
         </div>
 
+        <?php if (isset($_GET['approved'])): ?>
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #07a489;">&#10003;</span> Course offering approved successfully! Status marked as Completed.
+            </div>
+        <?php endif; ?>
+
         <!-- Courses Card -->
         <div class="card admin-card">
             
@@ -197,12 +203,25 @@
                             <th>CATEGORY</th>
                             <th>DURATION</th>
                             <th>COURSE FEE</th>
+                            <th class="text-center">STATUS</th>
                             <th class="text-right">ACTIONS</th>
                         </tr>
                     </thead>
                     <tbody id="coursesTableBody">
                         <?php if (!empty($courses)): ?>
-                            <?php foreach ($courses as $c): ?>
+                            <?php foreach ($courses as $c): 
+                                $isExplicitlyApproved = !empty($_SESSION['approved_courses'][$c['course_id']]);
+                                $isDbApproved = (isset($c['approval_status']) && strtolower($c['approval_status']) === 'approved') || (isset($c['status']) && strtoupper($c['status']) === 'APPROVED');
+                                $isDbPending = (isset($c['approval_status']) && strtolower($c['approval_status']) === 'pending') || (isset($c['status']) && strtoupper($c['status']) === 'PENDING');
+
+                                if ($isDbPending && !$isExplicitlyApproved) {
+                                    $isCourseApproved = false;
+                                } elseif ($isExplicitlyApproved || $isDbApproved) {
+                                    $isCourseApproved = true;
+                                } else {
+                                    $isCourseApproved = false;
+                                }
+                            ?>
                                 <tr class="course-record-row" data-category="<?php echo htmlspecialchars($c['category']); ?>">
                                     <td class="admin-td-primary">
                                         <?php echo htmlspecialchars($c['title']); ?>
@@ -221,8 +240,23 @@
                                     <td class="admin-td-price">
                                         LKR <?php echo number_format($c['fee'], 2); ?>
                                     </td>
+                                    <td class="text-center">
+                                        <?php if ($isCourseApproved): ?>
+                                            <span class="status status-approved" style="font-weight: 800; font-size: 0.78rem; letter-spacing: 0.04em;">
+                                                APPROVED
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="status status-pending" style="font-weight: 800; font-size: 0.78rem; letter-spacing: 0.04em;">
+                                                PENDING
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="admin-td-actions">
-                                        <a href="index.php?action=admin_delete_course&id=<?php echo $c['course_id']; ?>&from=courses" class="btn btn-danger admin-btn-action" onclick="return confirm('Permanently remove this course offering from the platform?')">Delete Course</a>
+                                        <?php if ($isCourseApproved): ?>
+                                            <span class="status-badge-completed" style="font-weight: 700; color: #07a489; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem;">&#10003; Completed</span>
+                                        <?php else: ?>
+                                            <a href="index.php?action=admin_update_approval&id=<?php echo $c['course_id']; ?>&status=approved&from=courses" class="btn admin-btn-action" style="background: #07a489; border-color: #07a489; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 14px; text-decoration: none;">Approve</a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -230,7 +264,7 @@
 
                         <!-- Empty State Row -->
                         <tr id="coursesEmptyState" style="<?php echo empty($courses) ? '' : 'display: none;'; ?>">
-                            <td colspan="6" class="admin-empty-state-td">
+                            <td colspan="7" class="admin-empty-state-td">
                                 <div class="admin-empty-state-wrapper">
                                     <div class="admin-empty-icon-circle">
                                         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

@@ -155,6 +155,16 @@
             <h1 class="admin-page-title">User Accounts Management</h1>
         </div>
 
+        <?php if (isset($_GET['approved'])): ?>
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #07a489;">&#10003;</span> User account approved successfully! Status marked as Completed.
+            </div>
+        <?php elseif (isset($_GET['rejected'])): ?>
+            <div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #dc2626;">&#10007;</span> User account registration has been rejected. Notification recorded.
+            </div>
+        <?php endif; ?>
+
         <!-- Users Management Card -->
         <div class="card admin-card">
             
@@ -193,7 +203,20 @@
                     </thead>
                     <tbody id="usersTableBody">
                         <?php if (!empty($users)): ?>
-                            <?php foreach ($users as $u): ?>
+                            <?php foreach ($users as $u): 
+                                $rawStatus = strtolower($u['approval_status'] ?? 'pending');
+                                $isJobSeeker = ($u['user_type'] === 'job_seeker');
+                                $isExplicitlyApproved = !empty($_SESSION['approved_ids'][$u['user_id']]) || (!empty($u['email']) && !empty($_SESSION['approved_emails'][strtolower($u['email'])]));
+
+                                $isUserApproved = false;
+                                $isUserRejected = false;
+
+                                if ($isJobSeeker || $isExplicitlyApproved || $rawStatus === 'approved') {
+                                    $isUserApproved = true;
+                                } elseif ($rawStatus === 'rejected') {
+                                    $isUserRejected = true;
+                                }
+                            ?>
                                 <tr class="user-record-row" data-role="<?php echo htmlspecialchars($u['user_type']); ?>">
                                     <td>
                                         <span class="admin-td-id">#<?php echo $u['user_id']; ?></span>
@@ -212,8 +235,20 @@
                                     <td class="admin-td-date">
                                         <?php echo htmlspecialchars(date('M d, Y', strtotime($u['created_at']))); ?>
                                     </td>
-                                    <td class="admin-td-actions">
-                                        <a href="index.php?action=admin_delete_user&id=<?php echo $u['user_id']; ?>&from=users" class="btn btn-danger admin-btn-action" onclick="return confirm('Deleting this user will remove all associated data. Are you sure?')">Remove Account</a>
+                                    <td class="admin-td-actions" style="white-space: nowrap;">
+                                        <?php if ($isUserApproved): ?>
+                                            <span class="status-badge-completed" style="font-weight: 700; color: #07a489; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem;">&#10003; Completed</span>
+                                        <?php elseif ($isUserRejected): ?>
+                                            <div style="display:inline-flex; align-items:center; gap:6px;">
+                                                <span style="font-weight: 700; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 6px 10px; border-radius: 6px; font-size: 0.82rem;" title="<?php echo htmlspecialchars($u['rejection_reason'] ?? 'No reason provided'); ?>">&#10007; Rejected</span>
+                                                <a href="index.php?action=admin_update_approval&id=<?php echo $u['user_id']; ?>&status=approved&from=users<?php echo !empty($u['email']) ? '&email=' . urlencode($u['email']) : ''; ?>" class="btn admin-btn-action" style="background: #0ea5e9; border-color: #0ea5e9; color: #ffffff; font-weight: 600; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; text-decoration: none;" title="Re-approve this user">Re-Approve</a>
+                                            </div>
+                                        <?php else: ?>
+                                            <div style="display:inline-flex; align-items:center; gap:6px;">
+                                                <a href="index.php?action=admin_update_approval&id=<?php echo $u['user_id']; ?>&status=approved&from=users<?php echo !empty($u['email']) ? '&email=' . urlencode($u['email']) : ''; ?>" class="btn admin-btn-action" style="background: #07a489; border-color: #07a489; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 12px; text-decoration: none; font-size: 0.82rem;">Approve</a>
+                                                <button type="button" onclick="openRejectModal(<?php echo $u['user_id']; ?>, '<?php echo htmlspecialchars(addslashes($u['email'] ?? 'User'), ENT_QUOTES); ?>', '<?php echo htmlspecialchars(addslashes($u['email'] ?? ''), ENT_QUOTES); ?>')" class="btn" style="background: #ef4444; border-color: #ef4444; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer; border: none;">Reject</button>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -387,6 +422,60 @@
         document.addEventListener('DOMContentLoaded', function() {
             renderPagination();
         });
+    </script>
+    <!-- Rejection Reason Modal -->
+    <div id="rejectModal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+        <div style="background: #ffffff; border-radius: 12px; width: 100%; max-width: 480px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); border: 1px solid #e2e8f0; margin: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #ef4444;">&#9888;</span> Reject User Account
+                </h3>
+                <button type="button" onclick="closeRejectModal()" style="background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            <form action="index.php?action=admin_update_approval" method="POST">
+                <input type="hidden" name="user_id" id="rejectUserId" value="">
+                <input type="hidden" name="approval_status" value="rejected">
+                <input type="hidden" name="from" value="users">
+                
+                <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #475569;">
+                    Are you sure you want to reject <strong id="rejectEntityName">this user</strong>? An in-app notification with your reason will be delivered when this user attempts to sign in.
+                </p>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 6px;">
+                        Reason for Rejection <span style="color: #ef4444;">*</span>
+                    </label>
+                    <textarea name="rejection_reason" id="rejectReasonInput" required rows="4" placeholder="Explain why the account registration was rejected..." style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; font-family: inherit; box-sizing: border-box; resize: vertical;"></textarea>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" onclick="closeRejectModal()" style="padding: 9px 16px; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; border-radius: 6px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    <button type="submit" style="padding: 9px 18px; border: none; background: #ef4444; color: #ffffff; border-radius: 6px; font-weight: 700; cursor: pointer;">Confirm Rejection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openRejectModal(userId, entityName, email) {
+        document.getElementById('rejectUserId').value = userId;
+        document.getElementById('rejectEntityName').innerText = entityName + (email && email !== entityName ? ' (' + email + ')' : '');
+        document.getElementById('rejectReasonInput').value = '';
+        var modal = document.getElementById('rejectModal');
+        modal.style.display = 'flex';
+    }
+
+    function closeRejectModal() {
+        var modal = document.getElementById('rejectModal');
+        modal.style.display = 'none';
+    }
+
+    window.addEventListener('click', function(e) {
+        var modal = document.getElementById('rejectModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
     </script>
 </body>
 </html>

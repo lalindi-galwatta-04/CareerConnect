@@ -237,6 +237,12 @@ if (empty($seekers)) {
             <h1 class="admin-page-title">Job Seekers Management</h1>
         </div>
 
+        <?php if (isset($_GET['approved'])): ?>
+            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 12px 18px; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1.1rem; color: #07a489;">&#10003;</span> Job Seeker account approved successfully! Status marked as Completed.
+            </div>
+        <?php endif; ?>
+
         <!-- Job Seekers Management Card -->
         <div class="card admin-card">
             
@@ -280,8 +286,20 @@ if (empty($seekers)) {
                                 $fullName = trim(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? ''));
                                 if (empty($fullName)) $fullName = $s['name'] ?? 'Candidate #' . $s['user_id'];
                                 $appCount = (int)($s['total_applications'] ?? 0);
-                                $status = ($appCount > 0 || (isset($s['status']) && strtoupper($s['status']) === 'ACTIVE')) ? 'ACTIVE' : 'REGISTERED';
-                                $skills = !empty($s['skills']) ? $s['skills'] : (!empty($s['bio']) ? $s['bio'] : 'General Profile');
+                                $isExplicitlyApproved = !empty($_SESSION['approved_ids'][$s['user_id']]) || (!empty($s['email']) && !empty($_SESSION['approved_emails'][strtolower($s['email'])]));
+                                $isDbApproved = (isset($s['approval_status']) && strtolower($s['approval_status']) === 'approved');
+                                $isDbPending = (isset($s['approval_status']) && strtolower($s['approval_status']) === 'pending');
+
+                                if ($isDbPending && !$isExplicitlyApproved) {
+                                    $isApproved = false;
+                                } elseif ($isExplicitlyApproved || $isDbApproved) {
+                                    $isApproved = true;
+                                } else {
+                                    $isApproved = (isset($s['status']) && strtoupper($s['status']) === 'ACTIVE') && empty($s['approval_status']);
+                                }
+
+                                $status = $isApproved ? 'ACTIVE' : 'REGISTERED';
+                                $skills = !empty($s['skills']) ? $s['skills'] : (!empty($s['education_level']) ? $s['education_level'] : (!empty($s['bio']) ? $s['bio'] : 'General Profile'));
                             ?>
                                 <tr class="seeker-record-row" data-app-count="<?php echo $appCount; ?>" data-status="<?php echo $status; ?>">
                                     <td class="admin-td-primary" style="font-weight: 700; color: #0f172a;">
@@ -311,7 +329,11 @@ if (empty($seekers)) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="admin-td-actions">
-                                        <a href="index.php?action=admin_delete_user&id=<?php echo $s['user_id']; ?>&from=seekers" class="btn btn-danger admin-btn-action" style="font-weight: 700; border-radius: 6px; padding: 6px 14px; text-decoration: none;" onclick="return confirm('Remove / Suspend this job seeker profile?')">Remove</a>
+                                        <?php if ($isApproved): ?>
+                                            <span class="status-badge-completed" style="font-weight: 700; color: #07a489; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 6px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; font-size: 0.82rem;">&#10003; Completed</span>
+                                        <?php else: ?>
+                                            <a href="index.php?action=admin_update_approval&id=<?php echo $s['user_id']; ?>&status=approved&from=seekers<?php echo !empty($s['email']) ? '&email=' . urlencode($s['email']) : ''; ?>" class="btn admin-btn-action" style="background: #07a489; border-color: #07a489; color: #ffffff; font-weight: 700; border-radius: 6px; padding: 6px 14px; text-decoration: none;">Approve</a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
