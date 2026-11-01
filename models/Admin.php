@@ -38,7 +38,7 @@ class AdminModel {
 
     // 2. Read All Users
     public function getAllUsers() {
-        $query = "SELECT user_id, email, phone_number, user_type, created_at 
+        $query = "SELECT user_id, email, phone_number, user_type, created_at, approval_status, rejection_reason 
                   FROM User 
                   WHERE user_type != 'admin' 
                   ORDER BY created_at DESC";
@@ -93,7 +93,7 @@ class AdminModel {
     // 8. Entity Approvals & Verification List
     public function getEntityApprovals() {
         // Companies
-        $queryCo = "SELECT 'Company' as entity_type, c.user_id, c.company_name as name, c.industry as detail, c.location, u.email, u.phone_number, u.created_at, 'Verified' as status 
+        $queryCo = "SELECT 'Company' as entity_type, c.user_id, c.company_name as name, c.industry as detail, c.location, c.registration_document as document, u.email, u.phone_number, u.created_at, u.approval_status as status, u.approval_status, u.rejection_reason 
                     FROM Company c 
                     JOIN User u ON c.user_id = u.user_id";
         $stmtCo = $this->conn->prepare($queryCo);
@@ -101,7 +101,7 @@ class AdminModel {
         $companies = $stmtCo->fetchAll();
 
         // Coaches
-        $queryCc = "SELECT 'Career Coach' as entity_type, cc.user_id, cc.coach_name as name, cc.specialization as detail, 'Remote / Online' as location, u.email, u.phone_number, u.created_at, 'Verified' as status 
+        $queryCc = "SELECT 'Career Coach' as entity_type, cc.user_id, cc.coach_name as name, cc.specialization as detail, 'Remote / Online' as location, cc.verification_document as document, u.email, u.phone_number, u.created_at, u.approval_status as status, u.approval_status, u.rejection_reason 
                     FROM Career_coach cc 
                     JOIN User u ON cc.user_id = u.user_id";
         $stmtCc = $this->conn->prepare($queryCc);
@@ -109,7 +109,7 @@ class AdminModel {
         $coaches = $stmtCc->fetchAll();
 
         // Training Providers
-        $queryTp = "SELECT 'Training Provider' as entity_type, tp.user_id, tp.provider_name as name, tp.website as detail, 'Institute Campus' as location, u.email, u.phone_number, u.created_at, 'Verified' as status 
+        $queryTp = "SELECT 'Training Provider' as entity_type, tp.user_id, tp.provider_name as name, tp.website as detail, 'Institute Campus' as location, tp.registration_document as document, u.email, u.phone_number, u.created_at, u.approval_status as status, u.approval_status, u.rejection_reason 
                     FROM Training_provider tp 
                     JOIN User u ON tp.user_id = u.user_id";
         $stmtTp = $this->conn->prepare($queryTp);
@@ -126,8 +126,8 @@ class AdminModel {
     // 9. Read All Training Providers with Course Counts & Details
     public function getAllTrainingProviders() {
         try {
-            $query = "SELECT tp.user_id, tp.provider_name, tp.contact_email, tp.website, tp.description,
-                             u.email, u.phone_number, u.created_at as registered_date,
+            $query = "SELECT tp.user_id, tp.provider_name, tp.contact_email, tp.website, tp.description, tp.registration_document as document,
+                             u.email, u.phone_number, u.created_at as registered_date, u.approval_status, u.rejection_reason, u.rejection_reason,
                              (SELECT COUNT(*) FROM Course c WHERE c.provider_id = tp.user_id) as total_courses
                       FROM Training_provider tp
                       JOIN User u ON tp.user_id = u.user_id
@@ -144,11 +144,11 @@ class AdminModel {
     // 10. Read All Job Seekers with Application Counts
     public function getAllJobSeekers() {
         try {
-            $query = "SELECT js.user_id, js.first_name, js.last_name, js.skills, js.bio,
-                             u.email, u.phone_number, u.created_at as registered_date,
-                             (SELECT COUNT(*) FROM Job_application ja WHERE ja.jobseeker_id = js.user_id) as total_applications
-                      FROM Job_seeker js
-                      JOIN User u ON js.user_id = u.user_id
+            $query = "SELECT js.user_id, js.first_name, js.last_name, js.skills, js.education_level,
+                             u.email, u.phone_number, u.created_at as registered_date, u.approval_status, u.rejection_reason, u.rejection_reason,
+                             (SELECT COUNT(*) FROM job_application ja WHERE ja.job_seeker_id = js.user_id) as total_applications
+                      FROM job_seeker js
+                      JOIN user u ON js.user_id = u.user_id
                       ORDER BY u.created_at DESC";
             $stmt = $this->conn->prepare($query);
             $stmt->execute();
@@ -162,11 +162,11 @@ class AdminModel {
     // 11. Read All Career Coaches with Session/Booking Counts
     public function getAllCareerCoaches() {
         try {
-            $query = "SELECT cc.user_id, cc.coach_name, cc.specialization, cc.hourly_rate, cc.bio,
-                             u.email, u.phone_number, u.created_at as registered_date,
-                             (SELECT COUNT(*) FROM Coach_session cs WHERE cs.coach_id = cc.user_id) as total_sessions
-                      FROM Career_coach cc
-                      JOIN User u ON cc.user_id = u.user_id
+            $query = "SELECT cc.user_id, cc.coach_name, cc.specialization, cc.hourly_rate, cc.bio, cc.verification_document as document,
+                             u.email, u.phone_number, u.created_at as registered_date, u.approval_status, u.rejection_reason, u.rejection_reason,
+                             (SELECT COUNT(*) FROM coach_interaction ci WHERE ci.coach_id = cc.user_id) as total_sessions
+                      FROM career_coach cc
+                      JOIN user u ON cc.user_id = u.user_id
                       ORDER BY u.created_at DESC";
             $stmt = $this->conn->prepare($query);
             $stmt->execute();
@@ -180,8 +180,8 @@ class AdminModel {
     // 12. Read All Companies with Active Job Post Counts
     public function getAllCompanies() {
         try {
-            $query = "SELECT c.user_id, c.company_name, c.industry, c.location, c.website, c.description,
-                             u.email, u.phone_number, u.created_at as registered_date,
+            $query = "SELECT c.user_id, c.company_name, c.industry, c.location, c.website, c.description, c.registration_document as document,
+                             u.email, u.phone_number, u.created_at as registered_date, u.approval_status, u.rejection_reason, u.rejection_reason,
                              (SELECT COUNT(*) FROM Job_posting jp WHERE jp.company_id = c.user_id) as total_jobs
                       FROM Company c
                       JOIN User u ON c.user_id = u.user_id
