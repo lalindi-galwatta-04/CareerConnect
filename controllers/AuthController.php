@@ -46,7 +46,20 @@ class AuthController {
 }
 
                     if (($user['approval_status'] ?? '') === 'rejected') {
-
+                        $rejectionNotice = $user['rejection_reason'] ?? null;
+                        if (empty($rejectionNotice)) {
+                            try {
+                                $nStmt = $this->db->prepare("SELECT message FROM notifications WHERE user_id = :uid AND type = 'account_status' ORDER BY notification_id DESC LIMIT 1");
+                                $nStmt->execute([':uid' => $user['user_id']]);
+                                $nRow = $nStmt->fetch(PDO::FETCH_ASSOC);
+                                if ($nRow) {
+                                    $rejectionNotice = $nRow['message'];
+                                }
+                            } catch (Exception $e) {}
+                        }
+                        if (empty($rejectionNotice)) {
+                            $rejectionNotice = "Your registration could not be verified by the administrator. Please contact support or re-register with verified documents.";
+                        }
                         $error = "Your account registration has been rejected.";
                         require __DIR__ . '/../views/auth/login.php';
                         return;
