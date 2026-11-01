@@ -15,7 +15,26 @@
             <h2>Welcome Back</h2>
             <p class="auth-subtitle">Sign in to your CareerConnect account</p>
 
-            <?php if (isset($error) && !empty($error)): ?>
+            <?php if (!empty($rejectionNotice)): ?>
+                <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 16px; margin-bottom: 1.25rem; text-align: left; box-shadow: 0 2px 6px rgba(239,68,68,0.08);">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #b91c1c; font-weight: 700; font-size: 0.95rem; margin-bottom: 6px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Account Registration Rejected</span>
+                    </div>
+                    <p style="margin: 0 0 10px 0; color: #7f1d1d; font-size: 0.88rem; line-height: 1.4;">
+                        Your registration has been reviewed and rejected by the CareerConnect administration team.
+                    </p>
+                    <div style="background: #ffffff; border-left: 3px solid #ef4444; border-radius: 4px; padding: 10px 12px; margin-bottom: 8px;">
+                        <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 3px;">Admin Feedback / Reason:</div>
+                        <div style="color: #1e293b; font-size: 0.88rem; font-weight: 500;"><?php echo htmlspecialchars($rejectionNotice); ?></div>
+                    </div>
+                    <p style="margin: 0; color: #991b1b; font-size: 0.8rem;">
+                        If you believe this was an error, please re-register with valid verification documents or contact support.
+                    </p>
+                </div>
+            <?php elseif (isset($error) && !empty($error)): ?>
                 <div class="alert" style="background:#fee2e2; color:#991b1b; border: 1px solid #f87171; padding: 12px; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.9rem; font-weight: 600;">
                     <?php echo htmlspecialchars($error); ?>
                 </div>
