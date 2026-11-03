@@ -960,7 +960,15 @@
         <?php
             // Prepare Chart Y-axis labels and points dynamically from real DB monthly history
             $monthlyData = $financials['monthly_history'] ?? [];
-            $maxRevenue = max(array_values($monthlyData ?: [0]));
+            $maxRevenue = 0.0;
+            if (!empty($monthlyData) && is_array($monthlyData)) {
+                foreach ($monthlyData as $mv) {
+                    $val = is_array($mv) ? (float)($mv['revenue'] ?? $mv['total'] ?? $mv['m_total'] ?? 0) : (float)$mv;
+                    if ($val > $maxRevenue) {
+                        $maxRevenue = $val;
+                    }
+                }
+            }
             if ($maxRevenue <= 0) {
                 $maxRevenue = (float)($financials['total_revenue'] ?? 0);
             }
