@@ -55,14 +55,10 @@ class Provider {
         $query = "INSERT INTO Course (provider_id, title, category, duration, fee, description) 
                   VALUES (:provider_id, :title, :category, :duration, :fee, :description)";
         $stmt = $this->conn->prepare($query);
-        return $stmt->execute([
-            ':provider_id' => $provider_id,
-            ':title' => $title,
-            ':category' => $category,
-            ':duration' => $duration,
-            ':fee' => $fee,
-            ':description' => $description
-        ]);
+        if ($res) {
+            return (int)$this->conn->lastInsertId();
+        }
+        return false;
     }
 
     public function updateCourse($course_id, $provider_id, $title, $category, $duration, $fee, $description) {
@@ -605,5 +601,235 @@ class Provider {
             'monthly_trends' => $monthlyTrends,
             'performance_matrix' => $performanceMatrix
         ];
+    }
+
+    // Course Curriculum Operations (Persisted in public/uploads/courses/curriculum_{id}.json)
+    public function getCourseCurriculum($course_id, $provider_id) {
+        $storageDir = __DIR__ . '/../public/uploads/courses/';
+        if (!is_dir($storageDir)) {
+            mkdir($storageDir, 0777, true);
+        }
+        $filePath = $storageDir . 'curriculum_' . (int)$course_id . '.json';
+        if (file_exists($filePath)) {
+            $data = json_decode(file_get_contents($filePath), true);
+            if (is_array($data)) {
+                return $data;
+            }
+        }
+
+        // Fetch course details to customize default curriculum
+        $course = $this->getCourseById($course_id, $provider_id);
+        $courseTitle = $course['title'] ?? 'Training Course';
+
+        $defaultCurriculum = [
+            'visibility' => 'visible',
+            'status' => 'In-Progress',
+            'progress_percent' => 65,
+            'general' => [
+                'id' => 'sec-general',
+                'title' => 'General',
+                'is_open' => true,
+                'items' => [
+                    [
+                        'id' => 'item-gen-1',
+                        'title' => $courseTitle . ' - Course Syllabus & Learning Outcomes',
+                        'type' => 'document',
+                        'file_size' => '1.8 MB',
+                        'has_mark_done' => true,
+                        'is_done' => true
+                    ],
+                    [
+                        'id' => 'item-gen-2',
+                        'title' => 'Student Course Feedback & Mid-term Survey',
+                        'type' => 'form',
+                        'has_mark_done' => false
+                    ]
+                ]
+            ],
+            'announcements' => [
+                [
+                    'id' => 'ann-1',
+                    'title' => 'Welcome to ' . $courseTitle . '!',
+                    'content' => 'Welcome all enrolled students! All course lecture materials, slides, and exercises will be updated here weekly.',
+                    'tag' => 'Welcome',
+                    'date' => date('M d, Y')
+                ]
+            ],
+            'lectures' => [
+                [
+                    'id' => 'sec-lec-1',
+                    'title' => 'Lecture 01 - Fundamentals & Overview',
+                    'status' => 'COMPLETED',
+                    'is_open' => true,
+                    'items' => [
+                        [
+                            'id' => 'item-lec1-1',
+                            'title' => 'Lecture 01 Slides & Notes (PDF)',
+                            'type' => 'document',
+                            'file_size' => '2.4 MB'
+                        ],
+                        [
+                            'id' => 'item-lec1-2',
+                            'title' => 'Practical Exercise & Case Study 01',
+                            'type' => 'document',
+                            'file_size' => '1.1 MB'
+                        ]
+                    ]
+                ],
+                [
+                    'id' => 'sec-lec-2',
+                    'title' => 'Lecture 02 - Core Principles & Hands-on Implementation',
+                    'status' => 'IN-PROGRESS',
+                    'is_open' => true,
+                    'items' => [
+                        [
+                            'id' => 'item-lec2-1',
+                            'title' => 'Step-by-step Framework Guide',
+                            'type' => 'document',
+                            'file_size' => '950 KB'
+                        ]
+                    ]
+                ],
+                [
+                    'id' => 'sec-lec-3',
+                    'title' => 'Lecture 03 - Advanced Techniques & Project Work',
+                    'status' => 'UPCOMING',
+                    'is_open' => false,
+                    'items' => []
+                ]
+            ]
+        ];
+
+        $this->saveCourseCurriculum($course_id, $provider_id, $defaultCurriculum);
+        return $defaultCurriculum;
+    }
+
+    public function saveCourseCurriculum($course_id, $provider_id, $curriculumData) {
+        $storageDir = __DIR__ . '/../public/uploads/courses/';
+        if (!is_dir($storageDir)) {
+            mkdir($storageDir, 0777, true);
+        }
+        $filePath = $storageDir . 'curriculum_' . (int)$course_id . '.json';
+        return file_put_contents($filePath, json_encode($curriculumData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    public function addLectureFileToCourse($course_id, $provider_id, $lecture_id, $fileItem) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if ($lecture_id === 'sec-general') {
+            $curriculum['general']['items'][] = $fileItem;
+        } else {
+            $found = false;
+            if (!empty($curriculum['lectures'])) {
+                foreach ($curriculum['lectures'] as &$lec) {
+                    if ($lec['id'] === $lecture_id) {
+                        $lec['items'][] = $fileItem;
+                        $found = true;
+                        break;
+                    }
+                }
+            }
+            if (!$found) {
+                if (!empty($curriculum['lectures'])) {
+                    $curriculum['lectures'][0]['items'][] = $fileItem;
+                } else {
+                    $curriculum['lectures'][] = [
+                        'id' => $lecture_id,
+                        'title' => 'Lecture Topic',
+                        'status' => 'IN-PROGRESS',
+                        'is_open' => true,
+                        'items' => [$fileItem]
+                    ];
+                }
+            }
+        }
+        return $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+    }
+
+    public function addAnnouncementToCourse($course_id, $provider_id, $announcement) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if (!isset($curriculum['announcements']) || !is_array($curriculum['announcements'])) {
+            $curriculum['announcements'] = [];
+        }
+        array_unshift($curriculum['announcements'], $announcement);
+        return $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+    }
+
+    public function deleteAnnouncementFromCourse($course_id, $provider_id, $announcementId) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if (!empty($curriculum['announcements'])) {
+            $curriculum['announcements'] = array_values(array_filter($curriculum['announcements'], function($a) use ($announcementId) {
+                return ($a['id'] ?? '') !== $announcementId;
+            }));
+        }
+        return $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+    }
+
+    public function deleteLectureItemFromCourse($course_id, $provider_id, $itemId) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if (!empty($curriculum['general']['items'])) {
+            $curriculum['general']['items'] = array_values(array_filter($curriculum['general']['items'], function($it) use ($itemId) {
+                return ($it['id'] ?? '') !== $itemId;
+            }));
+        }
+        if (!empty($curriculum['lectures'])) {
+            foreach ($curriculum['lectures'] as &$lec) {
+                if (!empty($lec['items'])) {
+                    $lec['items'] = array_values(array_filter($lec['items'], function($it) use ($itemId) {
+                        return ($it['id'] ?? '') !== $itemId;
+                    }));
+                }
+            }
+        }
+        return $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+    }
+
+    public function renameSectionInCourse($course_id, $provider_id, $section_id, $new_title) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if ($section_id === 'sec-general') {
+            $curriculum['general']['title'] = $new_title;
+        } else {
+            if (!empty($curriculum['lectures'])) {
+                foreach ($curriculum['lectures'] as &$lec) {
+                    if ($lec['id'] === $section_id) {
+                        $lec['title'] = $new_title;
+                        break;
+                    }
+                }
+            }
+        }
+        return $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+    }
+
+    public function renameLectureInCourse($course_id, $provider_id, $lecture_id, $new_title) {
+        return $this->renameSectionInCourse($course_id, $provider_id, $lecture_id, $new_title);
+    }
+
+    public function addLectureTopicToCourse($course_id, $provider_id, $title, $status = 'IN-PROGRESS') {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if (!isset($curriculum['lectures']) || !is_array($curriculum['lectures'])) {
+            $curriculum['lectures'] = [];
+        }
+        $newId = 'sec-lec-' . uniqid();
+        $newLecture = [
+            'id' => $newId,
+            'title' => $title,
+            'status' => strtoupper($status ?: 'IN-PROGRESS'),
+            'is_open' => true,
+            'items' => []
+        ];
+        $curriculum['lectures'][] = $newLecture;
+        $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+        return $newLecture;
+    }
+
+    public function deleteLectureSectionFromCourse($course_id, $provider_id, $section_id) {
+        $curriculum = $this->getCourseCurriculum($course_id, $provider_id);
+        if (!empty($curriculum['lectures'])) {
+            $curriculum['lectures'] = array_values(array_filter($curriculum['lectures'], function($lec) use ($section_id) {
+                return ($lec['id'] ?? '') !== $section_id;
+            }));
+            $this->saveCourseCurriculum($course_id, $provider_id, $curriculum);
+        }
+        return true;
     }
 }
