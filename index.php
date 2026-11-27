@@ -295,6 +295,9 @@ switch ($action) {
 		break;
 
 	case 'manage_course':
+	case 'course_profile':
+	case 'course_management':
+	case 'course_details':
 		$provider = new ProviderController();
 		$provider->manageCourse();
 		break;
