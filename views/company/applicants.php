@@ -42,10 +42,47 @@ function applicantStatusClass($status) {
 		}
 		.applicant-filters {
 			display: grid;
-			grid-template-columns: minmax(250px, 2fr) minmax(200px, 1fr) minmax(200px, 1fr);
+			grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr));
 			gap: 15px;
 			align-items: end;
 		}
+		.applicant-filter-actions {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+			margin-top: 16px;
+		}
+		.clear-filters-btn {
+			border: 1px solid #d1d5db;
+			background: #fff;
+			color: #374151;
+			border-radius: 6px;
+			padding: 8px 12px;
+			cursor: pointer;
+			font-size: 13px;
+		}
+		.clear-filters-btn:hover { background: #f3f4f6; }
+		.applicant-summary {
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 14px;
+			margin-bottom: 20px;
+		}
+		.applicant-summary-card {
+			border: 1px solid #e5e7eb;
+			border-radius: 10px;
+			padding: 16px;
+			background: #fff;
+		}
+		.applicant-summary-label {
+			font-size: 12px;
+			color: var(--text-muted);
+			margin-bottom: 8px;
+		}
+		.applicant-summary-value { font-size: 24px; font-weight: 700; }
+
 		.applicant-filters .form-group {
 			margin-bottom: 0;
 		}
@@ -56,14 +93,20 @@ function applicantStatusClass($status) {
 		}
 		.applicants-table-wrapper {
 			width: 100%;
-			overflow-x: auto;
 		}
 		.applicants-table {
 			width: 100%;
-			min-width: 850px;
+			table-layout: fixed;
 			border-collapse: collapse;
 			text-align: left;
 		}
+		.applicants-table th,
+		.applicants-table td { overflow-wrap: anywhere; }
+		.applicants-table th:nth-child(1) { width: 24%; }
+		.applicants-table th:nth-child(2) { width: 23%; }
+		.applicants-table th:nth-child(3) { width: 16%; }
+		.applicants-table th:nth-child(4) { width: 17%; }
+		.applicants-table th:nth-child(5) { width: 20%; }
 		.applicants-table th {
 			padding: 14px 12px;
 			border-bottom: 2px solid #e5e7eb;
@@ -166,24 +209,46 @@ function applicantStatusClass($status) {
 			cursor: not-allowed;
 		}
 		@media (max-width: 1100px) {
-			.applicant-filters {
-				grid-template-columns: 1fr 1fr;
-			}
-			.applicant-search-group {
-				grid-column: 1 / -1;
-			}
+			.applicant-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+			.applicant-search-group { grid-column: 1 / -1; }
+			.applicant-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 		}
 		@media (max-width: 700px) {
 			.applicants-header {
 				flex-direction: column;
 				align-items: flex-start;
 			}
-			.applicant-filters {
-				grid-template-columns: 1fr;
+			.applicant-filters { grid-template-columns: 1fr; }
+			.applicant-search-group { grid-column: auto; }
+			.applicant-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+			.applicant-summary-card { padding: 12px; }
+			.applicant-summary-value { font-size: 21px; }
+			.applicants-table thead { display: none; }
+			.applicants-table, .applicants-table tbody, .applicants-table tr,
+			.applicants-table td { display: block; width: 100%; box-sizing: border-box; }
+			.applicants-table tbody tr {
+				border: 1px solid #e5e7eb;
+				border-radius: 10px;
+				padding: 10px 14px;
+				margin-bottom: 12px;
 			}
-			.applicant-search-group {
-				grid-column: auto;
+			.applicants-table td {
+				border: none;
+				padding: 9px 0;
+				display: grid;
+				grid-template-columns: 115px minmax(0, 1fr);
+				gap: 10px;
+				text-align: left !important;
 			}
+			.applicants-table td::before {
+				content: attr(data-label);
+				font-size: 12px;
+				font-weight: 700;
+				color: var(--text-muted);
+			}
+			.applicants-table td:last-child { padding-top: 12px; }
+			.applicants-table td:last-child::before { content: "Action"; }
+			.applicants-table .action-btn { white-space: normal; text-align: center; }
 			.pagination-area {
 				flex-direction: column;
 				align-items: flex-start;
@@ -268,6 +333,24 @@ require __DIR__ . '/partials/company_navbar.php';
 				Manage Vacancies
 			</a>
 		</div>
+		<div class="applicant-summary">
+			<div class="applicant-summary-card">
+				<div class="applicant-summary-label">Total Applicants</div>
+				<div class="applicant-summary-value" id="totalApplicants">0</div>
+			</div>
+			<div class="applicant-summary-card">
+				<div class="applicant-summary-label">Pending Review</div>
+				<div class="applicant-summary-value" id="pendingApplicants">0</div>
+			</div>
+			<div class="applicant-summary-card">
+				<div class="applicant-summary-label">Shortlisted</div>
+				<div class="applicant-summary-value" id="shortlistedApplicants">0</div>
+			</div>
+			<div class="applicant-summary-card">
+				<div class="applicant-summary-label">Interview Scheduled</div>
+				<div class="applicant-summary-value" id="interviewApplicants">0</div>
+			</div>
+		</div>
 		<div
 			class="section-card"
 			style="margin-bottom:20px;"
@@ -280,7 +363,7 @@ require __DIR__ . '/partials/company_navbar.php';
 					<input
 						type="text"
 						id="applicantSearch"
-						placeholder="Search by applicant name..."
+						placeholder="Search name, email, or job vacancy..."
 					>
 				</div>
 				<div class="form-group">
@@ -288,18 +371,18 @@ require __DIR__ . '/partials/company_navbar.php';
 						Job Vacancy
 					</label>
 					<select id="jobFilter">
-						<option value="">
-							All Jobs
-						</option>
-						<option value="Associate SE (React / Node)">
-							Associate SE (React / Node)
-						</option>
-						<option value="Senior HR Executive">
-							Senior HR Executive
-						</option>
-						<option value="UI/UX Product Designer">
-							UI/UX Product Designer
-						</option>
+						<option value="">All Jobs</option>
+						<?php
+						$availableJobs = [];
+						foreach (($applicants ?? []) as $jobApplicant) {
+							$jobTitle = trim((string)($jobApplicant['job'] ?? ''));
+							if ($jobTitle !== '') $availableJobs[$jobTitle] = $jobTitle;
+						}
+					natcasesort($availableJobs);
+						foreach ($availableJobs as $jobTitle):
+						?>
+						<option value="<?php echo htmlspecialchars($jobTitle, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($jobTitle); ?></option>
+						<?php endforeach; ?>
 					</select>
 				</div>
 				<div class="form-group">
@@ -324,12 +407,19 @@ require __DIR__ . '/partials/company_navbar.php';
 						</option>
 					</select>
 				</div>
+				<div class="form-group">
+					<label for="applicantSort">Sort By</label>
+					<select id="applicantSort">
+						<option value="default">Default Order</option>
+						<option value="name-asc">Applicant Name (A–Z)</option>
+						<option value="name-desc">Applicant Name (Z–A)</option>
+						<option value="job-asc">Job Vacancy (A–Z)</option>
+					</select>
+				</div>
 			</div>
-			<div
-				class="filter-results"
-				id="applicantFilterResults"
-			>
-				Showing 0 applicant(s)
+			<div class="applicant-filter-actions">
+				<div class="filter-results" id="applicantFilterResults">Showing 0 applicant(s)</div>
+				<button type="button" class="clear-filters-btn" id="clearApplicantFilters">Clear All Filters</button>
 			</div>
 		</div>
 		<div class="section-card">
@@ -356,11 +446,12 @@ require __DIR__ . '/partials/company_navbar.php';
 							?>
 							<tr
 								class="applicant-row"
-								data-name="<?php echo htmlspecialchars($applicant['name']); ?>"
-								data-job="<?php echo htmlspecialchars($applicant['job']); ?>"
+								data-name="<?php echo htmlspecialchars($applicant['name'], ENT_QUOTES, 'UTF-8'); ?>"
+								data-email="<?php echo htmlspecialchars($applicant['email'], ENT_QUOTES, 'UTF-8'); ?>"
+								data-job="<?php echo htmlspecialchars($applicant['job'], ENT_QUOTES, 'UTF-8'); ?>"
 								data-status="<?php echo htmlspecialchars($status); ?>"
 							>
-								<td>
+								<td data-label="Candidate">
 									<div class="candidate-name">
 										<?php echo htmlspecialchars($applicant['name']); ?>
 									</div>
@@ -368,20 +459,20 @@ require __DIR__ . '/partials/company_navbar.php';
 										<?php echo htmlspecialchars($applicant['email']); ?>
 									</div>
 								</td>
-								<td>
+								<td data-label="Job Vacancy">
 									<?php echo htmlspecialchars($applicant['job']); ?>
 								</td>
-								<td>
+								<td data-label="Applied Date">
 									<?php echo htmlspecialchars($applicant['applied_date']); ?>
 								</td>
-								<td>
+								<td data-label="Status">
 									<span
 										class="status-badge <?php echo htmlspecialchars($statusClass); ?>"
 									>
 										<?php echo htmlspecialchars($status); ?>
 									</span>
 								</td>
-								<td style="text-align:right;">
+								<td data-label="Action" style="text-align:right;">
 									<a
 										href="index.php?action=candidate_review&candidate=<?php echo urlencode($applicant['key']); ?>"
 										class="btn action-btn"
@@ -427,6 +518,8 @@ function normalizeValue(value) {
 const applicantSearch = document.getElementById('applicantSearch');
 const jobFilter = document.getElementById('jobFilter');
 const applicantStatusFilter = document.getElementById('applicantStatusFilter');
+const applicantSort = document.getElementById('applicantSort');
+const clearApplicantFilters = document.getElementById('clearApplicantFilters');
 const applicantFilterResults = document.getElementById('applicantFilterResults');
 const noApplicantResults = document.getElementById('noApplicantResults');
 const paginationInfo = document.getElementById('paginationInfo');
@@ -447,9 +540,12 @@ function filterApplicants() {
 			const name = normalizeValue(row.dataset.name);
 			const job = normalizeValue(row.dataset.job);
 			const status = normalizeValue(row.dataset.status);
+			const email = normalizeValue(row.dataset.email);
 			const matchesSearch =
 				searchValue === '' ||
-				name.includes(searchValue);
+				name.includes(searchValue) ||
+				email.includes(searchValue) ||
+				job.includes(searchValue);
 			const matchesJob =
 				jobValue === '' ||
 				job === jobValue;
@@ -463,8 +559,17 @@ function filterApplicants() {
 			);
 		}
 	);
+	const sortValue = applicantSort.value;
+	if (sortValue === 'name-asc') {
+		filteredApplicants.sort((a, b) => normalizeValue(a.dataset.name).localeCompare(normalizeValue(b.dataset.name)));
+	} else if (sortValue === 'name-desc') {
+		filteredApplicants.sort((a, b) => normalizeValue(b.dataset.name).localeCompare(normalizeValue(a.dataset.name)));
+	} else if (sortValue === 'job-asc') {
+		filteredApplicants.sort((a, b) => normalizeValue(a.dataset.job).localeCompare(normalizeValue(b.dataset.job)));
+	}
 	currentPage = 1;
 	displayApplicantPage();
+	updateApplicantSummary();
 }
 // Display applicant page
 function displayApplicantPage() {
@@ -604,6 +709,14 @@ applicantStatusFilter.addEventListener(
 	'change',
 	filterApplicants
 );
+applicantSort.addEventListener('change', filterApplicants);
+clearApplicantFilters.addEventListener('click', function() {
+	applicantSearch.value = '';
+	jobFilter.value = '';
+	applicantStatusFilter.value = '';
+	applicantSort.value = 'default';
+	filterApplicants();
+});
 // Profile dropdown
 function toggleProfileDropdown() {
 	const dropdown = document.getElementById('profileDropdown');
